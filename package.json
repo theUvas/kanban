@@ -1,0 +1,14 @@
+{
+      "name": "kanban",
+      "version": "1.0.0",
+      "description": "Kanban local para tareas diarias",
+      "main": "main.js",
+      "scripts": {
+            "start": "node server.js",
+            "app": "node server.js & sleep 1 && electron .",
+            "build": "./build-app.sh"
+      },
+      "devDependencies": {
+            "electron": "^43.4.0"
+      }
+}
