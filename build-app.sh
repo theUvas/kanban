@@ -29,6 +29,7 @@ cp "$KDIR/main.js" "$APPDIR/"
 cp "$KDIR/preload.js" "$APPDIR/"
 cp "$KDIR/tray-menu.js" "$APPDIR/"
 cp "$KDIR/google-sync.js" "$APPDIR/"
+cp "$KDIR/agentnet-sync.js" "$APPDIR/"
 cp "$KDIR/grok-chat.js" "$APPDIR/"
 cp "$KDIR/google-oauth-client.json" "$APPDIR/" 2>/dev/null || true
 cp "$KDIR/index.html" "$APPDIR/"

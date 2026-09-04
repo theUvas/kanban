@@ -208,6 +208,11 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
             color: var(--text-muted);
             font-weight: 500;
         }
+        .google-btn.agentnet.connected {
+            border-color: #8b5cf688;
+            color: #7653bd;
+        }
+        .google-btn.agentnet.syncing { opacity: .7; }
 
 .menu-wrap { position: relative; }
 .menu-dropdown {
@@ -1590,6 +1595,7 @@ kbd {
                 <button class="add-btn add-btn-wide add-btn-top" id="top-add-btn" title="Nueva tarea (⌘N)">＋ Tarea</button>
                 <button class="add-btn add-btn-wide add-btn-top" id="grok-toggle" title="Grok">Grok</button>
                 <button class="google-btn" id="google-bar-btn" title="Conectar Google Calendar">Conectar Calendar</button>
+                <button class="google-btn agentnet" id="agentnet-bar-btn" title="Sincronizar con AgentNet">AgentNet</button>
                 <button class="icon-btn" id="theme-toggle" title="Cambiar tema">☾</button>
                 <button class="icon-btn" id="help-btn" title="Atajos de teclado">?</button>
                 <div class="menu-wrap">
@@ -4572,6 +4578,10 @@ kbd {
             else googleConnect();
             return;
         }
+        if (e.target.closest('#agentnet-bar-btn')) {
+            agentNetSyncNow();
+            return;
+        }
 
         // theme
         if (e.target.closest('#theme-toggle')) {
@@ -4869,7 +4879,11 @@ kbd {
             if (window.kanbanNative.onGoogleStatus) {
                 window.kanbanNative.onGoogleStatus(updateGoogleMenu);
             }
+            if (window.kanbanNative.onAgentNetStatus) {
+                window.kanbanNative.onAgentNetStatus(updateAgentNetStatus);
+            }
             refreshGoogleMenu();
+            refreshAgentNetStatus();
         }
         maybePromptDayClose();
         setInterval(maybePromptDayClose, 20000);
@@ -5186,6 +5200,48 @@ kbd {
             bar.classList.remove('connected');
             bar.textContent = 'Reconectar Calendar';
             bar.title = 'El permiso de Google caducó. Clic para volver a autorizar.';
+        }
+    }
+
+    function updateAgentNetStatus(st) {
+        const bar = $('#agentnet-bar-btn');
+        if (!bar) return;
+        const connected = !!(st && st.connected);
+        bar.classList.toggle('connected', connected);
+        bar.classList.toggle('syncing', !!(st && st.syncing));
+        bar.textContent = st && st.syncing
+            ? 'AgentNet…'
+            : connected
+                ? `AgentNet · r${st.revision || 0}`
+                : 'AgentNet';
+        bar.title = connected
+            ? 'Cambios sincronizados con AgentNet. Clic para sincronizar ahora.'
+            : ((st && st.lastError) || 'AgentNet todavía no está conectado.');
+    }
+
+    async function refreshAgentNetStatus() {
+        if (!window.kanbanNative || !window.kanbanNative.agentNetStatus) return;
+        try { updateAgentNetStatus(await window.kanbanNative.agentNetStatus()); } catch (e) {}
+    }
+
+    async function agentNetSyncNow() {
+        if (!window.kanbanNative || !window.kanbanNative.agentNetSync) {
+            toast('Abrí Kanban.app para sincronizar con AgentNet', { error: true });
+            return;
+        }
+        try {
+            const result = await window.kanbanNative.agentNetSync();
+            await refreshAgentNetStatus();
+            if (result && result.action === 'unconfigured') {
+                toast('Instalá primero el puente de AgentNet en esta Mac', { error: true });
+            } else {
+                toast(result && result.action === 'pull'
+                    ? 'Kanban actualizado desde AgentNet'
+                    : 'AgentNet actualizado');
+            }
+        } catch (error) {
+            await refreshAgentNetStatus();
+            toast(error.message || 'No se pudo sincronizar con AgentNet', { error: true });
         }
     }
 

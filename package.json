@@ -6,7 +6,8 @@
       "scripts": {
             "start": "node server.js",
             "app": "node server.js & sleep 1 && electron .",
-            "build": "./build-app.sh"
+            "build": "./build-app.sh",
+            "test": "node --test"
       },
       "devDependencies": {
             "electron": "^43.4.0"

@@ -60,6 +60,13 @@ contextBridge.exposeInMainWorld('kanbanNative', {
         ipcRenderer.on('google:status', listener);
         return () => ipcRenderer.removeListener('google:status', listener);
     },
+    agentNetStatus: () => ipcRenderer.invoke('agentnet:status'),
+    agentNetSync: () => ipcRenderer.invoke('agentnet:sync'),
+    onAgentNetStatus: (cb) => {
+        const listener = (_event, st) => cb(st);
+        ipcRenderer.on('agentnet:status', listener);
+        return () => ipcRenderer.removeListener('agentnet:status', listener);
+    },
     grokStatus: () => ipcRenderer.invoke('grok:status'),
     grokSetKey: (key) => ipcRenderer.invoke('grok:setKey', key),
     grokChat: (payload) => ipcRenderer.invoke('grok:chat', payload),

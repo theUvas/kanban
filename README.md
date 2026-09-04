@@ -52,6 +52,30 @@ npm start
 ## ⚠️ Nota importante
 **Kanban.app no necesita servidor.** Electron carga `index.html` directo. El servidor en http://127.0.0.1:3456 es solo si querés usarlo en el navegador (`npm start` o `bash start.sh`).
 
+## 🔄 Sincronización con AgentNet
+
+La app nativa reutiliza automáticamente la credencial del puente de AgentNet en
+`~/.config/agentnet/worker.json`. No guarda otro token ni expone la credencial
+al navegador. Al abrirse, publica el tablero local si AgentNet todavía está
+vacío; después sincroniza tareas y proyectos al guardar y consulta cambios cada
+15 segundos.
+
+Los conflictos usan revisiones del servidor y el `savedAt` del formato
+existente: gana el cambio más reciente y nunca se sobrescribe una revisión nueva
+de forma silenciosa. Los cambios recibidos desde AgentNet pasan por el mismo
+almacenamiento nativo y luego por la sincronización ya existente con Google
+Calendar.
+
+El botón **AgentNet** de la barra superior muestra la revisión sincronizada y
+permite forzar una actualización. Si aparece “sin configurar”, conectá primero
+la Mac desde AgentNet y volvé a construir la app:
+
+```bash
+npm install
+npm test
+bash build-app.sh
+```
+
 ## 🔐 Firma de la app
 La app está **firmada ad hoc** para evitar que macOS Gatekeeper la bloqueara. Si alguna vez se corrompe, ejecutá:
 ```bash
@@ -113,4 +137,4 @@ kanban/
 
 ## 💾 Persistencia
 
-Los datos se guardan en `localStorage` bajo la clave `kanban-tasks`. El formato es backward-compatible: las tarjetas viejas se migran al cargar agregando `tags`, `subtasks`, `order` y `prevStatus` con defaults. Usá **Exportar respaldo** (menú ⋯) para hacer copias de seguridad.
+Los datos se guardan en `localStorage` y, dentro de Kanban.app, en los archivos nativos `tasks.json` y `projects.json`. El formato es backward-compatible: las tarjetas viejas se migran al cargar agregando `tags`, `subtasks`, `order` y `prevStatus` con defaults. Con AgentNet configurado, la misma estructura se replica en el servidor. Usá **Exportar respaldo** (menú ⋯) para hacer copias de seguridad.

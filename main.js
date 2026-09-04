@@ -6,6 +6,7 @@ const fs = require('fs');
 const { sections } = require('./tray-menu');
 const googleSync = require('./google-sync');
 const grokChat = require('./grok-chat');
+const { createAgentNetSync } = require('./agentnet-sync');
 
 let mainWindow = null;
 let tray = null;
@@ -13,6 +14,11 @@ let tasksCache = [];
 let tasksSavedAt = 0;
 let projectsCache = [];
 let projectsSavedAt = 0;
+let agentNetSyncController = null;
+
+function scheduleAgentNetSync(delay) {
+    if (agentNetSyncController) agentNetSyncController.schedule(delay);
+}
 
 function tasksPath() {
     return path.join(app.getPath('userData'), 'tasks.json');
@@ -55,10 +61,11 @@ function readTasks() {
     return tasksCache;
 }
 
-function writeTasks(list) {
+function writeTasks(list, savedAt = Date.now(), sync = true) {
     tasksCache = Array.isArray(list) ? list : [];
-    tasksSavedAt = Date.now();
+    tasksSavedAt = Number(savedAt) || Date.now();
     atomicWrite(tasksPath(), JSON.stringify({ savedAt: tasksSavedAt, tasks: tasksCache }, null, 2));
+    if (sync) scheduleAgentNetSync();
 }
 
 function readProjects() {
@@ -72,10 +79,46 @@ function readProjects() {
     return projectsCache;
 }
 
-function writeProjects(list) {
+function writeProjects(list, savedAt = Date.now(), sync = true) {
     projectsCache = Array.isArray(list) ? list : [];
-    projectsSavedAt = Date.now();
+    projectsSavedAt = Number(savedAt) || Date.now();
     atomicWrite(projectsPath(), JSON.stringify({ savedAt: projectsSavedAt, projects: projectsCache }, null, 2));
+    if (sync) scheduleAgentNetSync();
+}
+
+function localAgentNetSnapshot() {
+    return {
+        tasks: readTasks(),
+        projects: readProjects(),
+        savedAt: Math.max(tasksSavedAt, projectsSavedAt)
+    };
+}
+
+async function applyAgentNetSnapshot(snapshot) {
+    const savedAt = Number(snapshot.savedAt) || Date.now();
+    writeTasks(snapshot.tasks, savedAt, false);
+    writeProjects(snapshot.projects, savedAt, false);
+    refreshMenus();
+    scheduleGoogleSync();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('tasks:changed', tasksCache);
+        mainWindow.webContents.send('projects:changed', projectsCache);
+    }
+}
+
+function publishAgentNetStatus(status) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('agentnet:status', status);
+    }
+    refreshMenus();
+}
+
+function agentNetStatusLabel() {
+    const status = agentNetSyncController && agentNetSyncController.status();
+    if (!status || !status.configured) return 'AgentNet · sin configurar';
+    if (status.syncing) return 'AgentNet · sincronizando…';
+    if (status.connected) return `AgentNet · sincronizado (r${status.revision})`;
+    return 'AgentNet · sin conexión';
 }
 
 let googleTimer = null;
@@ -332,6 +375,16 @@ function buildAppMenu() {
             ]
         },
         {
+            label: 'AgentNet',
+            submenu: [
+                { label: agentNetStatusLabel(), enabled: false },
+                {
+                    label: 'Sincronizar ahora',
+                    click: () => agentNetSyncController && agentNetSyncController.syncNow().catch(() => {})
+                }
+            ]
+        },
+        {
             label: 'Edición',
             submenu: [
                 { role: 'undo' },
@@ -511,6 +564,12 @@ ipcMain.handle('google:status', () => googleSync.status());
 ipcMain.handle('google:connect', () => connectGoogle());
 ipcMain.handle('google:disconnect', () => disconnectGoogle());
 ipcMain.handle('google:sync', () => runGoogleSync());
+ipcMain.handle('agentnet:status', () => agentNetSyncController
+    ? agentNetSyncController.status()
+    : { configured: false, connected: false, syncing: false });
+ipcMain.handle('agentnet:sync', async () => agentNetSyncController
+    ? agentNetSyncController.syncNow()
+    : { action: 'unconfigured' });
 ipcMain.handle('grok:status', () => grokChat.status(app.getPath('userData')));
 ipcMain.handle('grok:setKey', (_event, key) => {
     grokChat.saveKey(app.getPath('userData'), key);
@@ -615,9 +674,17 @@ app.whenReady().then(() => {
         openExternal: (url) => shell.openExternal(url)
     });
     readTasks();
+    readProjects();
     ensureTray();
+    agentNetSyncController = createAgentNetSync({
+        userData: app.getPath('userData'),
+        readLocal: localAgentNetSnapshot,
+        applyRemote: applyAgentNetSnapshot,
+        onStatus: publishAgentNetStatus
+    });
     refreshMenus();
     createWindow();
+    agentNetSyncController.start();
     setTimeout(() => {
         try { refreshMenus(); } catch (e) {}
     }, 800);
@@ -643,4 +710,5 @@ app.on('before-quit', () => {
         tray.destroy();
         tray = null;
     }
+    if (agentNetSyncController) agentNetSyncController.stop();
 });
