@@ -30,6 +30,7 @@ cp "$KDIR/preload.js" "$APPDIR/"
 cp "$KDIR/tray-menu.js" "$APPDIR/"
 cp "$KDIR/google-sync.js" "$APPDIR/"
 cp "$KDIR/agentnet-sync.js" "$APPDIR/"
+cp "$KDIR/web-sync.js" "$APPDIR/"
 cp "$KDIR/grok-chat.js" "$APPDIR/"
 cp "$KDIR/google-oauth-client.json" "$APPDIR/" 2>/dev/null || true
 cp "$KDIR/index.html" "$APPDIR/"
@@ -60,11 +61,10 @@ codesign --sign - --force --deep "$OUTPUT" >/dev/null 2>&1 || echo "⚠️  No s
 xattr -dr com.apple.quarantine "$OUTPUT" 2>/dev/null || true
 xattr -cr "$OUTPUT" 2>/dev/null || true
 
-# Copia local para que el launcher de la carpeta también funcione
+# No copiar la .app a esta carpeta: el mismo bundle id (com.kanban.local)
+# hace que Launch Services abra la copia equivocada o ninguna.
 rm -rf "$KDIR/Kanban.app"
-cp -R "$OUTPUT" "$KDIR/Kanban.app"
 
 echo ""
 echo "✅  Listo → $OUTPUT"
-echo "    Copia local → $KDIR/Kanban.app"
 echo "    Abrí con: open \"$OUTPUT\""

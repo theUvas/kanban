@@ -62,7 +62,11 @@ function readTasks() {
 }
 
 function writeTasks(list, savedAt = Date.now(), sync = true) {
-    tasksCache = Array.isArray(list) ? list : [];
+    const next = Array.isArray(list) ? list : [];
+    if (next !== tasksCache) {
+        try { googleSync.noteTaskListChange(tasksCache, next); } catch (err) {}
+    }
+    tasksCache = next;
     tasksSavedAt = Number(savedAt) || Date.now();
     atomicWrite(tasksPath(), JSON.stringify({ savedAt: tasksSavedAt, tasks: tasksCache }, null, 2));
     if (sync) scheduleAgentNetSync();
@@ -113,14 +117,6 @@ function publishAgentNetStatus(status) {
     refreshMenus();
 }
 
-function agentNetStatusLabel() {
-    const status = agentNetSyncController && agentNetSyncController.status();
-    if (!status || !status.configured) return 'AgentNet · sin configurar';
-    if (status.syncing) return 'AgentNet · sincronizando…';
-    if (status.connected) return `AgentNet · sincronizado (r${status.revision})`;
-    return 'AgentNet · sin conexión';
-}
-
 let googleTimer = null;
 function scheduleGoogleSync() {
     if (!googleSync.status().connected) return;
@@ -151,7 +147,8 @@ async function runGoogleSync() {
             pushed: result.pushed,
             removed: result.removed,
             imported: result.imported || 0,
-            updatedFromCal: result.updatedFromCal || 0
+            updatedFromCal: result.updatedFromCal || 0,
+            removedFromCal: result.removedFromCal || 0
         };
     } catch (err) {
         const st = googleSync.status();
@@ -375,16 +372,6 @@ function buildAppMenu() {
             ]
         },
         {
-            label: 'AgentNet',
-            submenu: [
-                { label: agentNetStatusLabel(), enabled: false },
-                {
-                    label: 'Sincronizar ahora',
-                    click: () => agentNetSyncController && agentNetSyncController.syncNow().catch(() => {})
-                }
-            ]
-        },
-        {
             label: 'Edición',
             submenu: [
                 { role: 'undo' },
@@ -507,8 +494,8 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1100,
         height: 750,
-        minWidth: 800,
-        minHeight: 500,
+        minWidth: 680,
+        minHeight: 480,
         title: 'Kanban — Tareas Diarias',
         titleBarStyle: 'hiddenInset',
         trafficLightPosition: { x: 16, y: 18 },

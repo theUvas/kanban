@@ -1,6 +1,21 @@
 # 📋 Kanban
 
-App nativa de Mac para gestionar tus tareas diarias con tablero Kanban, rediseñada con sistema de diseño propio (tema dark + toggle de claro) y funcionalidades avanzadas.
+Aplicación compartida para gestionar tareas diarias. La MiniPC aloja el tablero
+único y lo publica de forma privada dentro de la Tailnet; también puede usarse
+como app nativa en macOS.
+
+## 🌐 Abrir el tablero compartido
+
+Desde cualquier dispositivo conectado a la Tailnet:
+
+```text
+https://diego-mp80.tail28a2a4.ts.net:8445/
+```
+
+Se puede instalar como PWA desde el navegador en la MiniPC, la MacBook, el móvil
+o la tablet. Todos esos accesos leen y escriben la misma instantánea versionada.
+La barra superior incluye **Abrir AgentNet** y AgentNet incluye el botón
+**Abrir Kanban** para cambiar entre las dos aplicaciones.
 
 ## 💻 Instalar en otra Mac
 
@@ -26,12 +41,16 @@ Después de instalar, la app queda en **Aplicaciones** y se abre desde Launchpad
 
 ## 🚀 Uso rápido
 
-### Opción 1: Desde Dock / Launchpad / Spotlight ← Recomendado
+### Opción 1: Tablero compartido ← Recomendado
+
+Abrí la URL de la MiniPC indicada arriba o instalala desde el navegador.
+
+### Opción 2: Desde Dock / Launchpad / Spotlight
 
 1. **`Kanban.app`** está en **Aplicaciones**. Abrilo desde Launchpad, Spotlight o el Dock.
 2. Desde terminal: `open /Applications/Kanban.app`
 
-### Opción 2: Desde terminal
+### Opción 3: Desde terminal
 
 ```bash
 # Arranca todo (servidor + app)
@@ -41,7 +60,7 @@ bash ~/Desktop/kanban/launch.sh
 open /Applications/Kanban.app
 ```
 
-### Opción 3: Solo abrir en el navegador
+### Opción 4: Servidor local de desarrollo
 
 ```bash
 cd ~/Desktop/kanban
@@ -49,8 +68,9 @@ npm start
 # Abrí http://127.0.0.1:3456
 ```
 
-## ⚠️ Nota importante
-**Kanban.app no necesita servidor.** Electron carga `index.html` directo. El servidor en http://127.0.0.1:3456 es solo si querés usarlo en el navegador (`npm start` o `bash start.sh`).
+En la MiniPC, `kanban.service` ejecuta el servidor en `127.0.0.1:8791` y
+Tailscale Serve lo publica mediante HTTPS en el puerto 8445. El proxy web usa la
+API privada de AgentNet sin enviar ninguna credencial al navegador.
 
 ## 🔄 Sincronización con AgentNet
 
@@ -65,6 +85,12 @@ existente: gana el cambio más reciente y nunca se sobrescribe una revisión nue
 de forma silenciosa. Los cambios recibidos desde AgentNet pasan por el mismo
 almacenamiento nativo y luego por la sincronización ya existente con Google
 Calendar.
+
+Todos los agentes de AgentNet, tanto los asignados a la MiniPC como los asignados
+a la MacBook, pueden crear, modificar y borrar tareas o eventos cuando Diego
+envía la solicitud en modo **Ejecutar**. AgentNet autentica el equipo y el agente,
+valida y versiona las operaciones y el tablero web recibe el cambio en unos cinco
+segundos. El modo **Conversar** nunca modifica el tablero.
 
 El botón **AgentNet** de la barra superior muestra la revisión sincronizada y
 permite forzar una actualización. Si aparece “sin configurar”, conectá primero
@@ -88,9 +114,9 @@ codesign --sign - --force /Applications/Kanban.app/Contents/MacOS/Kanban
 bash ~/Desktop/kanban/build-app.sh
 ```
 
-## 🛑 Para detener el servidor
+## 🛑 Para detener el servidor de la MiniPC
 ```bash
-lsof -ti:3456 | xargs kill -9
+systemctl --user stop kanban.service
 ```
 
 ## ✨ Funcionalidades

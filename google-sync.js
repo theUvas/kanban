@@ -468,20 +468,44 @@ function eventDue(ev) {
     return '';
 }
 
+// The default window is a week back and 60 days ahead. Linked events can sit
+// further out, so the query stretches to cover every linked due date.
+// Otherwise a deleted Calendar event outside that week never comes back in the
+// list and the Kanban card stays forever.
+function calendarQueryBounds(tasks, now = new Date()) {
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
+    for (const task of tasks || []) {
+        if (!task || !task.googleEventId) continue;
+        const due = String(task.due || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) continue;
+        const [y, m, d] = due.split('-').map(Number);
+        const start = new Date(y, m - 1, d);
+        const end = new Date(y, m - 1, d + 1);
+        if (start < from) from.setTime(start.getTime());
+        if (end > to) to.setTime(end.getTime());
+    }
+    return { from, to };
+}
+
+function dueInRange(due, bounds) {
+    if (!bounds || !/^\d{4}-\d{2}-\d{2}$/.test(String(due || ''))) return false;
+    const day = String(due);
+    return day >= isoDate(bounds.from) && day < isoDate(bounds.to);
+}
+
 function isKanbanOrigin(ev) {
     const priv = ev && ev.extendedProperties && ev.extendedProperties.private || {};
     return priv.kanbanSource === 'kanban-app';
 }
 
-async function listCalendarEvents() {
+async function listCalendarEvents(bounds) {
     const now = new Date();
-    const from = new Date(now);
-    from.setDate(from.getDate() - 7);
-    const to = new Date(now);
-    to.setDate(to.getDate() + 60);
+    const from = bounds && bounds.from ? bounds.from : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+    const to = bounds && bounds.to ? bounds.to : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 60);
     const items = [];
     let pageToken = '';
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 20; i++) {
         const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
         url.search = new URLSearchParams({
             singleEvents: 'true',
@@ -496,11 +520,83 @@ async function listCalendarEvents() {
         pageToken = data.nextPageToken || '';
         if (!pageToken) break;
     }
-    return items.filter(ev => ev && ev.status !== 'cancelled' && eventDue(ev));
+    return {
+        items: items.filter(ev => ev && ev.status !== 'cancelled' && eventDue(ev)),
+        truncated: !!pageToken
+    };
 }
 
-function mergeCalendarEvents(tasks, events) {
+// A linked card whose event is not in the list might have been deleted, or
+// it might have moved. Ask Calendar before dropping it. This covers events
+// born in Calendar and events the Kanban created: a delete on either side
+// has to win on both.
+async function confirmMissingCalendarEvents(tasks, activeIds, bounds) {
+    const cancelledIds = [];
+    const recovered = [];
+    for (const task of tasks || []) {
+        if (!task || !task.googleEventId) continue;
+        const id = String(task.googleEventId);
+        if (activeIds.has(id)) continue;
+        if (!dueInRange(task.due, bounds)) continue;
+        try {
+            const ev = await api('GET', `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(id)}`);
+            if (!ev || ev.status === 'cancelled' || !eventDue(ev)) cancelledIds.push(id);
+            else recovered.push(ev);
+        } catch (err) {
+            if (err.status === 404 || err.status === 410) {
+                cancelledIds.push(id);
+                continue;
+            }
+            throw err;
+        }
+    }
+    return { cancelledIds, recovered };
+}
+
+function idSet(values) {
+    return new Set((values || []).map(id => String(id)));
+}
+
+// Cards that disappeared from the board still own a Calendar event. Remember
+// those ids so the next sync deletes them and does not import them again.
+// If the same event id comes back (undo), drop the pending delete and revive it.
+function noteTaskListChange(previous, next) {
+    if (!userData) return;
+    const prev = Array.isArray(previous) ? previous : [];
+    const nxt = Array.isArray(next) ? next : [];
+    const nextIds = new Set(nxt.map(task => task && task.id));
+    const nextEvents = new Set(
+        nxt.filter(task => task && task.googleEventId).map(task => String(task.googleEventId))
+    );
+    const state = loadState();
+    const pending = new Set(state.pendingCalendarDeletes || []);
+    const suppressed = new Set(state.suppressedEventIds || []);
+    const revive = new Set(state.reviveEventIds || []);
+    for (const task of prev) {
+        if (!task || nextIds.has(task.id) || !task.googleEventId) continue;
+        const eventId = String(task.googleEventId);
+        if (nextEvents.has(eventId)) continue;
+        pending.add(eventId);
+        suppressed.add(eventId);
+        revive.delete(eventId);
+    }
+    for (const eventId of nextEvents) {
+        if (!pending.has(eventId) && !suppressed.has(eventId)) continue;
+        revive.add(eventId);
+        pending.delete(eventId);
+        suppressed.delete(eventId);
+    }
+    saveState({
+        pendingCalendarDeletes: [...pending].slice(-500),
+        suppressedEventIds: [...suppressed].slice(-500),
+        reviveEventIds: [...revive].slice(-500)
+    });
+}
+
+function mergeCalendarEvents(tasks, events, opts) {
     const out = Array.isArray(tasks) ? tasks.map(t => ({ ...t })) : [];
+    const cancelled = idSet(opts && opts.cancelledIds);
+    const suppressed = idSet(opts && opts.suppressedIds);
     const byEvent = new Map();
     let maxId = 0;
     for (const t of out) {
@@ -510,7 +606,10 @@ function mergeCalendarEvents(tasks, events) {
     let imported = 0;
     let updated = 0;
     for (const ev of events) {
-        if (isKanbanOrigin(ev)) continue;
+        if (!ev || isKanbanOrigin(ev) || suppressed.has(String(ev.id))) continue;
+        // The lookup can include older events so we notice deletions. Only the
+        // normal window (a week back, 60 days ahead) creates new cards.
+        if (opts && opts.importBounds && !dueInRange(eventDue(ev), opts.importBounds)) continue;
         const due = eventDue(ev);
         const title = String(ev.summary || 'Evento de Calendar').slice(0, 250);
         const dueTime = eventClock(ev.start);
@@ -569,7 +668,16 @@ function mergeCalendarEvents(tasks, events) {
         byEvent.set(String(ev.id), task);
         imported++;
     }
-    return { tasks: out, imported, updated };
+    let removedFromCal = 0;
+    const kept = [];
+    for (const task of out) {
+        if (task && task.googleEventId && cancelled.has(String(task.googleEventId))) {
+            removedFromCal++;
+            continue;
+        }
+        kept.push(task);
+    }
+    return { tasks: kept, imported, updated, removedFromCal };
 }
 
 async function deleteEvent(eventId) {
@@ -581,8 +689,9 @@ async function deleteEvent(eventId) {
     }
 }
 
-async function upsertEvent(task) {
+async function upsertEvent(task, opts) {
     const body = eventBody(task);
+    const recreateIfMissing = !!(opts && opts.recreateIfMissing);
     if (task.googleEventId) {
         try {
             const updated = await api('PATCH', `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(task.googleEventId)}`, body);
@@ -591,7 +700,11 @@ async function upsertEvent(task) {
             if (err.status === 400) {
                 // All-day ↔ timed conversion can still 400; recreate as the right type.
                 await deleteEvent(task.googleEventId);
-            } else if (err.status !== 404 && err.status !== 410) {
+            } else if (err.status === 404 || err.status === 410) {
+                // Gone from Calendar. Only recreate when the Kanban just brought
+                // the card back (undo). A delete in Calendar removes the card.
+                if (!recreateIfMissing) return null;
+            } else {
                 throw err;
             }
         }
@@ -623,7 +736,7 @@ async function patchImportedSchedule(task) {
             task.googleStart = start || null;
             task.googleEnd = end || null;
         } catch (err) {
-            if (err.status === 404 || err.status === 410) return false;
+            if (err.status === 404 || err.status === 410) return 'missing';
             throw err;
         }
     }
@@ -655,10 +768,20 @@ async function patchImportedSchedule(task) {
     } else {
         body = asAllDay(task.due, end && end.date ? addDaysISO(String(end.date).slice(0, 10), daysBetween(currentDue, task.due)) : nextDate(task.due));
     }
-    const updated = await api('PATCH', `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(task.googleEventId)}`, body);
+    let updated;
+    try {
+        updated = await api('PATCH', `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(task.googleEventId)}`, body);
+    } catch (err) {
+        if (err.status === 404 || err.status === 410) return 'missing';
+        throw err;
+    }
     task.googleStart = (updated && updated.start) || body.start;
     task.googleEnd = (updated && updated.end) || body.end;
     return true;
+}
+
+function capIds(values) {
+    return [...values].slice(-500);
 }
 
 async function syncTasks(tasks) {
@@ -668,80 +791,162 @@ async function syncTasks(tasks) {
     let pushed = 0;
     let removed = 0;
     let lastError = null;
-    for (const task of out) {
+    const started = loadState();
+    const pending = new Set(started.pendingCalendarDeletes || []);
+    const suppressed = new Set(started.suppressedEventIds || []);
+    const revive = new Set(started.reviveEventIds || []);
+    const deletedOk = [];
+    const droppedEventIds = [];
+
+    // Cards removed from the Kanban: delete their Calendar events before the
+    // pull, or the same event is imported again as a new card.
+    for (const eventId of [...pending]) {
         try {
-            // Importadas: si están hechas se borran de Calendar (igual que las del Kanban).
-            // Si siguen abiertas, solo se parchea fecha/hora — no se reescriben como todo el día.
-            if (task.googleFromCalendar) {
+            await deleteEvent(eventId);
+            deletedOk.push(eventId);
+            pending.delete(eventId);
+            suppressed.add(eventId);
+            removed++;
+            changed = true;
+        } catch (err) {
+            lastError = String(err.message || err);
+            if (loadState().authExpired) break;
+        }
+    }
+
+    if (!loadState().authExpired) {
+        for (const task of out) {
+            try {
+                const eventId = task.googleEventId ? String(task.googleEventId) : '';
+                const bringBack = !!(eventId && revive.has(eventId));
+                // Importadas: si están hechas se borran de Calendar (igual que las del Kanban).
+                // Si siguen abiertas, solo se parchea fecha/hora — no se reescriben como todo el día.
+                if (task.googleFromCalendar && task.googleEventId && !bringBack) {
+                    if (!shouldPush(task)) {
+                        await deleteEvent(task.googleEventId);
+                        suppressed.add(eventId);
+                        task.googleEventId = null;
+                        changed = true;
+                        removed++;
+                        continue;
+                    }
+                    const patched = await patchImportedSchedule(task);
+                    if (patched === 'missing') {
+                        droppedEventIds.push(eventId);
+                        suppressed.add(eventId);
+                        changed = true;
+                        continue;
+                    }
+                    if (patched) {
+                        changed = true;
+                        pushed++;
+                    }
+                    continue;
+                }
+                if (task.googleFromCalendar && bringBack && !shouldPush(task)) {
+                    task.googleEventId = null;
+                    revive.delete(eventId);
+                    continue;
+                }
                 if (!shouldPush(task)) {
                     if (task.googleEventId) {
                         await deleteEvent(task.googleEventId);
+                        suppressed.add(eventId);
                         task.googleEventId = null;
                         changed = true;
                         removed++;
                     }
                     continue;
                 }
-                if (task.googleEventId) {
-                    if (await patchImportedSchedule(task)) {
-                        changed = true;
-                        pushed++;
-                    }
+                const id = await upsertEvent(task, { recreateIfMissing: bringBack || !task.googleEventId });
+                if (task.googleEventId && !id) {
+                    droppedEventIds.push(eventId);
+                    suppressed.add(eventId);
+                    changed = true;
                     continue;
                 }
-                // Se deshizo un Hecho: el evento original ya no está, se recrea.
-                const id = await upsertEvent(task);
-                task.googleEventId = id;
-                task.googleFromCalendar = false;
-                changed = true;
-                pushed++;
-                continue;
-            }
-            if (shouldPush(task)) {
-                const id = await upsertEvent(task);
+                if (bringBack) revive.delete(eventId);
                 if (task.googleEventId !== id) {
                     task.googleEventId = id;
+                    if (task.googleFromCalendar) task.googleFromCalendar = false;
                     changed = true;
                 }
                 pushed++;
-            } else if (task.googleEventId) {
-                await deleteEvent(task.googleEventId);
-                task.googleEventId = null;
-                changed = true;
-                removed++;
+            } catch (err) {
+                lastError = String(err.message || err);
+                if (loadState().authExpired) break;
             }
-        } catch (err) {
-            lastError = String(err.message || err);
-            if (loadState().authExpired) break;
         }
     }
-    let pulled = { tasks: out, imported: 0, updated: 0 };
+    let pulled = { tasks: out, imported: 0, updated: 0, removedFromCal: 0 };
     if (!loadState().authExpired) {
         try {
-            const events = await listCalendarEvents();
-            pulled = mergeCalendarEvents(out, events);
+            const fresh = loadState();
+            for (const eventId of fresh.suppressedEventIds || []) suppressed.add(String(eventId));
+            for (const eventId of fresh.reviveEventIds || []) revive.add(String(eventId));
+            const bounds = calendarQueryBounds(out);
+            const listed = await listCalendarEvents(bounds);
+            const active = listed.items || [];
+            const activeIds = new Set(active.map(ev => String(ev.id)));
+            const confirmed = await confirmMissingCalendarEvents(out, activeIds, bounds);
+            const cancelled = (confirmed.cancelledIds || [])
+                .map(id => String(id))
+                .filter(id => !revive.has(id));
+            pulled = mergeCalendarEvents(out, active.concat(confirmed.recovered), {
+                cancelledIds: cancelled.concat(droppedEventIds),
+                suppressedIds: [...suppressed],
+                importBounds: calendarQueryBounds([])
+            });
         } catch (err) {
             lastError = lastError || String(err.message || err);
             if (!loadState().authExpired) throw err;
         }
     }
+    const liveEvents = new Set(
+        (pulled.tasks || []).filter(task => task && task.googleEventId).map(task => String(task.googleEventId))
+    );
+    for (const eventId of [...revive]) {
+        if (!liveEvents.has(eventId)) revive.delete(eventId);
+    }
+    const latest = loadState();
+    const pendingNow = new Set(latest.pendingCalendarDeletes || []);
+    for (const eventId of deletedOk) pendingNow.delete(String(eventId));
+    for (const eventId of pending) pendingNow.add(String(eventId));
+    const suppressedNow = new Set([...(latest.suppressedEventIds || []), ...suppressed].map(String));
+    for (const eventId of liveEvents) suppressedNow.delete(eventId);
+    const reviveNow = new Set([...(latest.reviveEventIds || []), ...revive].map(String));
+    for (const eventId of liveEvents) reviveNow.delete(eventId);
     saveState({
+        pendingCalendarDeletes: capIds(pendingNow),
+        suppressedEventIds: capIds(suppressedNow),
+        reviveEventIds: capIds(reviveNow),
         lastSync: new Date().toISOString(),
         lastError,
         lastPushed: pushed,
         lastRemoved: removed,
         lastImported: pulled.imported,
-        lastUpdatedFromCal: pulled.updated
+        lastUpdatedFromCal: pulled.updated,
+        lastRemovedFromCal: pulled.removedFromCal || 0
     });
     return {
         tasks: pulled.tasks,
-        changed: changed || pulled.imported > 0 || pulled.updated > 0,
+        changed: changed || pulled.imported > 0 || pulled.updated > 0 || (pulled.removedFromCal || 0) > 0,
         error: lastError,
         pushed,
         removed,
         imported: pulled.imported,
-        updatedFromCal: pulled.updated
+        updatedFromCal: pulled.updated,
+        removedFromCal: pulled.removedFromCal || 0
     };
 }
 
-module.exports = { init, status, connect, disconnect, syncTasks };
+module.exports = {
+    init,
+    status,
+    connect,
+    disconnect,
+    syncTasks,
+    mergeCalendarEvents,
+    calendarQueryBounds,
+    noteTaskListChange
+};

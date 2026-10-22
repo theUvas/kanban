@@ -787,7 +787,7 @@ Reglas:
 - Si no da fecha, usá hoy. Si da hora sin fecha, hoy.
 - Una sola etiqueta: trabajo, Musica, personal, actividad.
 - Proyectos por nombre: Lyrios, LeLoLa, Luvaty, TripiWorld, Sana Sana, Inkisition, InkstinctNYC, etc.
-- Eventos [cal] vienen de Google Calendar; al marcarlos hecho se borran del calendario de Google.
+- Eventos [cal] vienen de Google Calendar. Eliminar una tarea también borra su evento de Google. Si el evento se borra en Google, la tarea sale del tablero. Marcar hecho borra el evento y deja la tarjeta.
 - Si hay vencidas, un bloque ahora, o foco, mencionalo cuando ayude.
 - No vuelques el snapshot entero. Resumí lo que importa.
 - Después de actuar, confirmá en una o dos líneas qué quedó.

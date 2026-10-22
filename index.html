@@ -98,7 +98,7 @@ body {
 button { font-family: inherit; cursor: pointer; }
 input, textarea, select { font-family: inherit; }
 
-.app { max-width: 1320px; margin: 0 auto; padding: 28px 28px 48px; }
+.app { max-width: 1320px; margin: 0 auto; padding: 28px 28px 48px; min-width: 0; }
 
 .titlebar-drag { display: none; }
 body.electron .titlebar-drag {
@@ -174,7 +174,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .search-wrap .clear-search:hover { color: var(--text); background: var(--surface-3); }
 .search-wrap.has-text .clear-search { display: block; }
 
-.topbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 
 .icon-btn {
     width: 34px; height: 34px;
@@ -213,6 +213,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
             color: #7653bd;
         }
         .google-btn.agentnet.syncing { opacity: .7; }
+        .app-switch { display: inline-flex; align-items: center; text-decoration: none; }
 
 .menu-wrap { position: relative; }
 .menu-dropdown {
@@ -617,6 +618,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
     gap: 18px;
     align-items: flex-start;
     min-height: 60vh;
+    min-width: 0;
 }
 .board.hidden { display: none; }
 
@@ -1003,7 +1005,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .quick-add-pop {
     position: fixed;
     z-index: 280;
-    width: 340px;
+    width: min(340px, calc(100vw - 24px));
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
@@ -1063,7 +1065,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
     display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px;
 }
 
-.calendar-view { display: none; }
+.calendar-view { display: none; min-width: 0; --cal-gutter: 64px; }
 .calendar-view.active { display: block; }
 
 .cal-card {
@@ -1074,7 +1076,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
     box-shadow: var(--shadow-sm);
 }
 .cal-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 10px; flex-wrap: wrap; }
-.cal-toolbar h2 { font-size: 1.15rem; font-weight: 560; letter-spacing: -0.03em; color: var(--text); }
+.cal-toolbar h2 { font-size: 1.15rem; font-weight: 560; letter-spacing: -0.03em; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
 .cal-nav { display: flex; gap: 6px; align-items: center; }
 .cal-nav .nav-btn {
     width: 32px; height: 32px;
@@ -1088,8 +1090,8 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .cal-nav .nav-btn:hover { background: var(--surface-2); }
 .cal-nav .today-btn { width: auto; padding: 0 12px; font-size: .8rem; font-weight: 560; color: var(--text); }
 
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.cal-weekday { text-align: center; font-size: .68rem; color: var(--text-faint); letter-spacing: .06em; text-transform: uppercase; padding: 4px 0 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-weekday { text-align: center; font-size: .68rem; color: var(--text-faint); letter-spacing: .06em; text-transform: uppercase; padding: 4px 0 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .cal-day {
     background: var(--bg);
@@ -1102,6 +1104,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
     flex-direction: column;
     gap: 4px;
     overflow: hidden;
+    min-width: 0;
 }
 .cal-day:hover { background: var(--surface-2); }
 .cal-day.other-month { opacity: .38; }
@@ -1119,6 +1122,8 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     cursor: pointer;
     display: flex; align-items: center; gap: 4px;
+    min-width: 0;
+    max-width: 100%;
 }
 .cal-task-pill.status-en-progreso { background: var(--acc-amber-soft); border-left-color: var(--acc-amber); color: var(--acc-amber); }
 .cal-task-pill.status-hecho { background: var(--acc-green-soft); border-left-color: var(--acc-green); color: var(--acc-green); opacity: .72; }
@@ -1141,7 +1146,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
     position: relative;
     display: flex; flex-wrap: wrap; gap: 6px;
     min-height: 36px;
-    padding: 8px 10px 10px 72px;
+    padding: 8px 10px 10px calc(var(--cal-gutter) + 8px);
     border: 1px dashed var(--border);
     border-radius: 10px;
     margin-bottom: 10px;
@@ -1149,7 +1154,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .cal-allday.drag-over { background: var(--acc-blue-soft); border-color: var(--acc-blue); }
 .cal-allday .al-label {
     position: absolute;
-    margin-left: -56px;
+    margin-left: calc(8px - var(--cal-gutter));
     font-size: .68rem; color: var(--text-faint); font-weight: 560;
     padding-top: 8px;
 }
@@ -1162,7 +1167,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 }
 .cal-hour {
     display: grid;
-    grid-template-columns: 64px 1fr;
+    grid-template-columns: var(--cal-gutter) 1fr;
     min-height: 48px;
     border-top: 1px solid var(--border);
 }
@@ -1181,7 +1186,7 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .cal-slot.drag-over { background: var(--acc-blue-soft); }
 .cal-blocks-layer {
     position: absolute;
-    left: 64px;
+    left: var(--cal-gutter);
     right: 0;
     top: 0;
     bottom: 0;
@@ -1212,12 +1217,12 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 }
 .cal-block:active { cursor: grabbing; }
 .cal-block .cb-time { font-size: .66rem; font-weight: 650; font-variant-numeric: tabular-nums; opacity: .85; }
-.cal-block .cb-text { font-weight: 560; }
+.cal-block .cb-text { font-weight: 560; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .cal-block.hecho { opacity: .55; }
 .cal-block.hecho .cb-text { text-decoration: line-through; }
 .cal-hour .h-label { white-space: nowrap; }
 .cal-now-line {
-    position: absolute; left: 64px; right: 0;
+    position: absolute; left: var(--cal-gutter); right: 0;
     height: 2px; background: var(--danger);
     z-index: 2; pointer-events: none;
 }
@@ -1324,7 +1329,8 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .subtask-add button:hover { background: var(--text); color: var(--bg); }
 .subtasks-empty { font-size: .78rem; color: var(--text-faint); padding: 4px 2px; }
 
-.modal-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.modal-buttons { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 8px; }
+.modal-btn-spacer { flex: 1; }
 .btn {
     padding: 9px 16px;
     border-radius: 9px;
@@ -1337,6 +1343,8 @@ body.electron .search-wrap { -webkit-app-region: no-drag; }
 .btn.primary { background: var(--text); color: var(--bg); }
 .btn.primary:hover { opacity: .9; }
 .btn.danger { background: var(--danger-soft); color: var(--danger); }
+.btn.danger:hover { background: var(--danger); color: #fff; }
+#modal-delete[hidden] { display: none; }
 
 .day-panel { max-width: 460px; max-height: 88vh; padding: 24px; display: flex; flex-direction: column; }
 .day-panel header { margin-bottom: 14px; }
@@ -1557,17 +1565,48 @@ kbd {
     padding: 14px; font-size: .82rem; color: var(--text-muted); line-height: 1.4;
 }
 
+@media (max-width: 1080px) {
+    .app { padding-left: 16px; padding-right: 16px; }
+    .board { flex-direction: column; align-items: stretch; gap: 14px; }
+    .column-col { width: 100%; max-height: min(46vh, 480px); }
+    .cal-card { padding: 14px; }
+    .cal-day { min-height: 72px; padding: 6px; }
+    .cal-grid { gap: 4px; }
+    .cal-allday { padding: 28px 10px 10px; }
+    .cal-allday .al-label { position: static; margin: 0 0 4px; padding: 0; width: 100%; }
+}
+
 @media (max-width: 860px) {
     .app { padding: 16px 14px 32px; }
-    .board { flex-direction: column; }
-    .column-col { max-height: none; }
     .topbar { flex-direction: column; align-items: stretch; }
-    .search-wrap { max-width: none; }
-    .form-grid, .form-grid.times { grid-template-columns: 1fr; }
+    .search-wrap { max-width: none; min-width: 0; }
+    .form-grid, .form-grid.times, .quick-add-pop .qa-grid { grid-template-columns: 1fr; }
     .kbd-grid { grid-template-columns: 1fr; }
-    .topbar-actions { margin-left: 0; }
+    .topbar-actions { margin-left: 0; justify-content: flex-start; }
     .projects-view.active { grid-template-columns: 1fr; }
     .proj-sidebar { position: static; max-height: none; }
+    .range-label { min-width: 0; }
+    .calendar-view { --cal-gutter: 48px; }
+    .cal-task-pill .p-time { display: none; }
+    .cal-weekday { letter-spacing: 0; font-size: .62rem; }
+    .view-toggle button { padding: 6px 10px; }
+}
+
+@media (max-width: 720px) {
+    .cal-card { padding: 10px; }
+    .cal-day { min-height: 54px; padding: 3px; gap: 2px; }
+    .cal-day .day-num { min-width: 18px; height: 18px; font-size: .7rem; }
+    .cal-task-pill { font-size: .6rem; padding: 1px 3px; }
+    .cal-task-pill .p-check { display: none; }
+    .google-btn { max-width: 132px; }
+}
+
+@media (max-height: 700px) and (min-width: 1081px) {
+    .column-col { max-height: calc(100vh - 148px); }
+}
+@media (max-height: 700px) {
+    .cal-day { min-height: 48px; }
+    .app { padding-bottom: 24px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1595,7 +1634,6 @@ kbd {
                 <button class="add-btn add-btn-wide add-btn-top" id="top-add-btn" title="Nueva tarea (⌘N)">＋ Tarea</button>
                 <button class="add-btn add-btn-wide add-btn-top" id="grok-toggle" title="Grok">Grok</button>
                 <button class="google-btn" id="google-bar-btn" title="Conectar Google Calendar">Conectar Calendar</button>
-                <button class="google-btn agentnet" id="agentnet-bar-btn" title="Sincronizar con AgentNet">AgentNet</button>
                 <button class="icon-btn" id="theme-toggle" title="Cambiar tema">☾</button>
                 <button class="icon-btn" id="help-btn" title="Atajos de teclado">?</button>
                 <div class="menu-wrap">
@@ -1778,6 +1816,8 @@ kbd {
             </div>
 
             <div class="modal-buttons">
+                <button class="btn danger" id="modal-delete" type="button" hidden>Eliminar</button>
+                <span class="modal-btn-spacer"></span>
                 <button class="btn ghost" id="modal-cancel">Cancelar</button>
                 <button class="btn primary" id="modal-save">Guardar</button>
             </div>
@@ -1891,6 +1931,7 @@ kbd {
     <input type="file" id="import-file" accept=".json,application/json" hidden>
     <input type="file" id="project-photo-file" accept="image/*" hidden>
 
+    <script src="web-sync.js"></script>
     <script>
     'use strict';
     // ═══════════════ CONFIG / STATE ═══════════════
@@ -2271,6 +2312,11 @@ kbd {
         const savedAt = Date.now();
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ savedAt, tasks })); } catch (e) { /* sin espacio / privado */ }
         try { localStorage.setItem(PROJECTS_KEY, JSON.stringify({ savedAt, projects })); } catch (e) {}
+        if (window.kanbanHosted && !touchOnSave
+            && typeof window.kanbanNative?.acceptInitialState === 'function') {
+            window.kanbanNative.acceptInitialState(tasks, projects);
+            return;
+        }
         if (window.kanbanNative && typeof window.kanbanNative.saveTasks === 'function') {
             try {
                 const r = window.kanbanNative.saveTasks(tasks);
@@ -2414,8 +2460,8 @@ kbd {
     // ═══════════════ ACTIONS ═══════════════
     function deleteTask(id) {
         const task = taskById(id);
-        if (!task) return;
-        if (!confirm(`¿Eliminar "${task.text}"?`)) return;
+        if (!task) return false;
+        if (!confirm(`¿Eliminar "${task.text}"?`)) return false;
         const snapshot = snapshotState();
         tasks = tasks.filter(t => t.id !== id);
         if (ui.selectedId === id) ui.selectedId = null;
@@ -2423,6 +2469,7 @@ kbd {
         render();
         pushUndo(snapshot, 'Eliminar tarea');
         toast('Tarea eliminada', { action: { label: 'Deshacer', fn: undoLast } });
+        return true;
     }
 
     function clearDone() {
@@ -3053,16 +3100,7 @@ kbd {
     }
     function renderTagFilters() {
         const el = $('#tag-filters');
-        if (!el) return;
-        if (ui.view === 'projects') { el.innerHTML = ''; return; }
-        const scoped = tasks.filter(inCountScope);
-        const counts = {};
-        scoped.forEach(t => (t.tags || []).forEach(tag => { counts[tag] = (counts[tag] || 0) + 1; }));
-        el.innerHTML = `<span class="tf-label">Etiquetas</span>` + TAGS.map(tag => `
-            <button class="tag-chip${ui.tagFilter === tag.id ? ' active' : ''}" data-tag="${tag.id}" title="Filtrar por «${esc(tag.label)}»">
-                <span class="tdot" style="background:${tag.color}"></span>
-                <span class="tx">${esc(tag.label)}</span><span class="cnt">· ${counts[tag.id] || 0}</span>
-            </button>`).join('');
+        if (el) el.innerHTML = '';
     }
 
     function renderProjectFilters() {
@@ -3084,9 +3122,11 @@ kbd {
         scoped.forEach(t => {
             if (t.projectId) counts[t.projectId] = (counts[t.projectId] || 0) + 1;
         });
+        const visible = list.filter(p => (counts[p.id] || 0) > 0 || p.id === saved);
+        if (!visible.length) { el.innerHTML = ''; return; }
         el.innerHTML = `<span class="tf-label">Proyectos</span>` +
             `<button class="tag-chip${saved == null ? ' active' : ''}" data-proj="">Todos</button>` +
-            list.map(p => `
+            visible.map(p => `
                 <button class="tag-chip proj-chip${saved === p.id ? ' active' : ''}" data-proj="${p.id}" style="--pc:${esc(p.color)}">
                     <span class="tdot" style="background:${esc(p.color)}"></span>
                     <span class="tx">${esc(p.name)}</span>
@@ -3185,20 +3225,15 @@ kbd {
         }
 
         // priority chip
-        const prioChip = `<span class="chip prio prio-${task.priority}">${PRIO_LABEL[task.priority]}</span>`;
+        const prioChip = task.priority && task.priority !== 'm'
+            ? `<span class="chip prio prio-${task.priority}">${PRIO_LABEL[task.priority]}</span>`
+            : '';
         const focusChip = task.focused ? `<span class="chip focus-chip">Foco</span>` : '';
 
         const proj = projectById(task.projectId);
-        const skipTag = proj ? proj.name.toLowerCase() : '';
         const projChip = proj
             ? `<span class="chip tag" title="Proyecto"><span class="cdot" style="background:${esc(proj.color)}"></span>${esc(proj.name)}</span>`
             : '';
-        const tagChips = (task.tags || [])
-            .filter(t => t.toLowerCase() !== skipTag)
-            .map(t => {
-                const meta = TAGS.find(x => x.id === t);
-                return `<span class="chip tag"><span class="cdot" style="background:${tagColor(t)}"></span>${esc(meta ? meta.label : t)}</span>`;
-            }).join('');
 
         // subtask progress
         let subHtml = '';
@@ -3238,7 +3273,7 @@ kbd {
                     <button class="ta-del" data-act="delete" title="Eliminar">×</button>
                 </div>
             </div>
-            <div class="task-chips">${dueChip}${prioChip}${focusChip}${projChip}${tagChips}</div>
+            <div class="task-chips">${dueChip}${prioChip}${focusChip}${projChip}</div>
             ${subHtml}
             ${notesHtml}
             ${(overdue || task.status === 'en-progreso') ? `<div class="ov-actions">
@@ -3355,6 +3390,8 @@ kbd {
         if (fTags) fTags.innerHTML = tagPickHtml([]);
         fillProjectSelect(ui.projectFilter || (ui.view === 'projects' ? ui.selectedProjectId : null));
         renderSubtaskEditor();
+        const del = $('#modal-delete');
+        if (del) del.hidden = true;
         $('#modal-overlay').classList.add('active');
         setTimeout(() => $('#f-text').focus(), 80);
     }
@@ -3377,6 +3414,8 @@ kbd {
         if (fTags) fTags.innerHTML = tagPickHtml(normalizeTags(task.tags));
         fillProjectSelect(task.projectId);
         renderSubtaskEditor();
+        const del = $('#modal-delete');
+        if (del) del.hidden = false;
         $('#modal-overlay').classList.add('active');
         setTimeout(() => $('#f-text').focus(), 80);
     }
@@ -4578,11 +4617,6 @@ kbd {
             else googleConnect();
             return;
         }
-        if (e.target.closest('#agentnet-bar-btn')) {
-            agentNetSyncNow();
-            return;
-        }
-
         // theme
         if (e.target.closest('#theme-toggle')) {
             applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
@@ -4628,6 +4662,13 @@ kbd {
     // ═══════════════ MODAL / PANEL EVENTS ═══════════════
     $('#modal-cancel').addEventListener('click', closeModal);
     $('#modal-save').addEventListener('click', saveModal);
+    const modalDelete = $('#modal-delete');
+    if (modalDelete) {
+        modalDelete.addEventListener('click', () => {
+            if (editingId === null) return;
+            if (deleteTask(editingId)) closeModal();
+        });
+    }
     $('#f-time').addEventListener('change', () => {
         if ($('#f-time').value && !$('#f-due').value) $('#f-due').value = todayStr();
     });
@@ -4804,7 +4845,7 @@ kbd {
         } else {
             raw = fileT.list.length ? fileT.list : localT.list;
         }
-        if (!raw.length) raw = sampleTasks();
+        if (!raw.length && !window.kanbanHosted) raw = sampleTasks();
         tasks = migrate(raw);
         const localP = loadProjectsLocal();
         let fileP = { savedAt: 0, list: [] };
@@ -5267,7 +5308,8 @@ kbd {
         const res = await window.kanbanNative.googleSync();
         updateGoogleMenu(res);
         if (res && res.ok) {
-            if (res.imported) toast(`Traídas ${res.imported} de Google Calendar`);
+            if (res.removedFromCal) toast(`Quitadas ${res.removedFromCal} que ya no están en Calendar`);
+            else if (res.imported) toast(`Traídas ${res.imported} de Google Calendar`);
             else toast('Calendar actualizado');
         } else toast((res && res.error) || 'Error al sincronizar', { error: true, duration: 6000 });
     }
